@@ -157,7 +157,7 @@ func (proxy *Proxy) start() {
 	certManager := autocert.Manager{
 		Prompt: autocert.AcceptTOS,
 		Cache:  autocert.DirCache("certs"),
-		//Email:  os.Getenv("LETSENCRYPT_EMAIL"),
+		Email:  os.Getenv("LETSENCRYPT_EMAIL"),
 		HostPolicy: func(ctx context.Context, host string) error {
 			log.Println("host-pocity request for:", host)
 			if _, ok := proxy.routes[host]; !ok {
