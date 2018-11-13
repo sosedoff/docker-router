@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -17,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -143,6 +140,17 @@ func newProxy() *Proxy {
 	return proxy
 }
 
+func (proxy *Proxy) hostPolicy() autocert.HostPolicy {
+	return func(ctx context.Context, host string) error {
+		log.Println("host-pocity request for:", host)
+		if _, ok := proxy.routes[host]; !ok {
+			log.Println("host-policy rejected")
+			return errors.New("invalid host")
+		}
+		return nil
+	}
+}
+
 func (proxy *Proxy) start() {
 	httpPort := os.Getenv("HTTP_PORT")
 	if httpPort == "" {
@@ -154,30 +162,9 @@ func (proxy *Proxy) start() {
 		httpsPort = "8443"
 	}
 
-	certManager := autocert.Manager{
-		Prompt: autocert.AcceptTOS,
-		Cache:  autocert.DirCache("certs"),
-		Email:  os.Getenv("LETSENCRYPT_EMAIL"),
-		HostPolicy: func(ctx context.Context, host string) error {
-			log.Println("host-pocity request for:", host)
-			if _, ok := proxy.routes[host]; !ok {
-				log.Println("host-policy rejected")
-				return errors.New("invalid host")
-			}
-			return nil
-		},
-	}
-
-	// Use LetsEncrypt staging endpoint for testing purposes
-	if os.Getenv("LETSENCRYPT_STAGING") != "" {
-		key, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			log.Fatal(err)
-		}
-		certManager.Client = &acme.Client{
-			DirectoryURL: "https://acme-staging.api.letsencrypt.org/directory",
-			Key:          key,
-		}
+	certManager, err := configureCertManager(proxy.hostPolicy())
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	handler := http.NewServeMux()
