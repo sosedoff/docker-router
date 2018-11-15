@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
@@ -131,6 +132,7 @@ func (m *Monitor) start() {
 			if err != nil {
 				log.Println("error:", err)
 			}
+			time.Sleep(time.Second)
 		}
 	}
 }
