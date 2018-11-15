@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
@@ -93,11 +94,17 @@ func (m *Monitor) inspectExistingContainers() {
 		return
 	}
 
+	wg := &sync.WaitGroup{}
+	wg.Add(len(list))
+
 	for _, c := range list {
 		go func(id string) {
 			m.inspectContainer(id)
+			wg.Done()
 		}(c.ID)
 	}
+
+	wg.Wait()
 }
 
 func (m *Monitor) handleEvent(e events.Message) {
