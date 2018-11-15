@@ -19,9 +19,10 @@ import (
 )
 
 type Proxy struct {
-	proxy   *httputil.ReverseProxy
-	mapping map[string]string
-	routes  map[string]*Route
+	proxy    *httputil.ReverseProxy
+	mapping  map[string]string
+	routes   map[string]*Route
+	forceSSL bool
 }
 
 func getTargetHost(val string) string {
@@ -99,6 +100,19 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 		log.Println(rl.String())
 	}()
 
+	// Issue a redirect from http -> https
+	if proxy.forceSSL && rl.Scheme == "http" {
+		requestURL := &url.URL{
+			Scheme:   "https",
+			Host:     rl.Host,
+			Path:     req.URL.Path,
+			RawQuery: req.URL.RawQuery,
+		}
+
+		http.Redirect(rw, req, requestURL.String(), 301)
+		return
+	}
+
 	target := proxy.lookup(getRouteHost(req.Host))
 	if target == nil {
 		rl.Status = http.StatusServiceUnavailable
@@ -132,9 +146,10 @@ func newProxy() *Proxy {
 	}
 
 	proxy := &Proxy{
-		proxy:   reverseProxy,
-		routes:  map[string]*Route{},
-		mapping: map[string]string{},
+		proxy:    reverseProxy,
+		routes:   map[string]*Route{},
+		mapping:  map[string]string{},
+		forceSSL: os.Getenv("FORCE_SSL") == "1" || os.Getenv("FORCE_SSL") == "true",
 	}
 
 	return proxy
