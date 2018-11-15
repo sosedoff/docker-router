@@ -17,9 +17,9 @@ func configureCertManager(policyFunc autocert.HostPolicy) (*autocert.Manager, er
 		return nil, errors.New("LETSENCRYPT_CERTS_DIR env var is not set")
 	}
 
-	email := os.Getenv("LETENCRYPT_EMAIL")
+	email := os.Getenv("LETSENCRYPT_EMAIL")
 	if email == "" {
-		return nil, errors.New("LETENCRYPT_EMAIL env var is not set")
+		return nil, errors.New("LETSENCRYPT_EMAIL env var is not set")
 	}
 
 	manager := autocert.Manager{
