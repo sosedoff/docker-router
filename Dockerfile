@@ -6,10 +6,9 @@ RUN \
   apk add --no-cache ca-certificates openssl postgresql wget && \
   update-ca-certificates
 
-WORKDIR /beam
-ADD beam /beam/beam
+ADD docker-router-linux /docker-router
 
 EXPOSE 80
 EXPOSE 443
 
-CMD ["/beam/beam"]
+CMD ["/docker-router"]

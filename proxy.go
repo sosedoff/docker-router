@@ -187,7 +187,8 @@ func (proxy *Proxy) start() {
 	}
 
 	go func() {
-		if err := http.ListenAndServe(":"+httpPort, handler); err != nil {
+		certHandler := certManager.HTTPHandler(handler)
+		if err := http.ListenAndServe(":"+httpPort, certHandler); err != nil {
 			log.Fatal(err)
 		}
 	}()
