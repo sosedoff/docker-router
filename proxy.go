@@ -187,6 +187,10 @@ func (proxy *Proxy) start() {
 
 	// Debug routes
 	if os.Getenv("DEBUG") != "" {
+		handler.HandleFunc("/_test", func(rw http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(rw, "test\n")
+		})
+
 		handler.HandleFunc("/_routes", func(rw http.ResponseWriter, r *http.Request) {
 			data, _ := json.Marshal(proxy.routes)
 			fmt.Fprintf(rw, "%s\n", data)
