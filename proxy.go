@@ -125,6 +125,9 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	req.URL.Scheme = "http"
 	req.URL.Host = target.Endpoint
 
+	// configure HSTS
+	rw.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+
 	ts := time.Now()
 	proxy.proxy.ServeHTTP(wrapRw, req)
 
@@ -214,6 +217,8 @@ func (proxy *Proxy) start() {
 				tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
 				tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
 			},
+			MinVersion:               tls.VersionTLS11,
+			PreferServerCipherSuites: true,
 		},
 	}
 
