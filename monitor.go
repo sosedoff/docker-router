@@ -85,7 +85,7 @@ func (m *Monitor) inspectContainer(id string) error {
 }
 
 func (m *Monitor) removeContainer(id string) {
-	m.events <- RouteEvent{Action: "remove", ID: id}
+	m.proxy.removeTarget(id)
 }
 
 func (m *Monitor) inspectExistingContainers() {
@@ -112,7 +112,7 @@ func (m *Monitor) handleEvent(e events.Message) {
 	switch e.Action {
 	case "start":
 		m.inspectContainer(e.ID)
-	case "die", "destroy":
+	case "kill", "die", "stop", "destroy":
 		m.removeContainer(e.ID)
 	}
 }
