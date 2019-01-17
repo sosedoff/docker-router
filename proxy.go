@@ -21,7 +21,7 @@ import (
 type Proxy struct {
 	proxy    *httputil.ReverseProxy
 	mapping  map[string]string
-	routes   map[string]*Route
+	routes   map[string]map[string]*Route
 	forceSSL bool
 }
 
@@ -49,47 +49,114 @@ func writeRouteNotFound(rw http.ResponseWriter, rl *requestLog) {
 	rw.WriteHeader(rl.Status)
 }
 
-// Find a route target for the given hostname
-func (p *Proxy) lookup(host string) *Target {
-	route, ok := p.routes[host]
+func (p *Proxy) lookup(req *http.Request) *Target {
+	host := strings.Split(strings.ToLower(req.Host), ":")[0]
+	path := req.URL.Path
+
+	// Find the routing table for the requested hostname
+	routeTable, ok := p.routes[host]
 	if !ok {
 		return nil
 	}
+
+	var route *Route
+
+	for prefix, r := range routeTable {
+		// Skip catch-all destinations
+		if prefix == "" || prefix == "*" {
+			continue
+		}
+
+		// Find the first matching route
+		if strings.HasPrefix(path, prefix) {
+			route = r
+			break
+		}
+	}
+
+	// Fallback to the default route if we did not match any with prefix
+	if route == nil {
+		route = routeTable["*"]
+		if route == nil {
+			return nil
+		}
+	}
+
 	return route.pickRoundRobinTarget()
 }
 
-func (p *Proxy) addTarget(id string, host string, endpoint string) error {
-	route, ok := p.routes[host]
-	p.mapping[id] = host
+func (p *Proxy) addTarget(id, host, prefix, endpoint string) error {
+	// Check if domain-level route exists
+	_, routeTableExists := p.routes[host]
+	p.mapping[id] = fmt.Sprintf("%s@%s", host, prefix)
 
-	if !ok {
+	// Domain-level routing table does not exist
+	if !routeTableExists {
 		rt := newRoute()
 		rt.addTarget(id, endpoint)
-		p.routes[host] = rt
+		p.routes[host] = map[string]*Route{prefix: rt}
 		return nil
 	}
 
-	for _, t := range route.Targets {
+	// Prefix-level routing table does not exist
+	_, prefixExists := p.routes[host][prefix]
+	if !prefixExists {
+		rt := newRoute()
+		rt.addTarget(id, endpoint)
+		p.routes[host][prefix] = rt
+		return nil
+	}
+
+	// Find out if the target already exists
+	for _, t := range p.routes[host][prefix].Targets {
 		if t.Endpoint == endpoint {
 			return nil
 		}
 	}
 
-	return route.addTarget(id, endpoint)
+	// Add the target
+	return p.routes[host][prefix].addTarget(id, endpoint)
 }
 
 func (p *Proxy) removeTarget(id string) error {
-	host, ok := p.mapping[id]
+	name, ok := p.mapping[id]
+	if !ok {
+		return nil
+	}
+	defer delete(p.mapping, id)
+
+	mapping := strings.Split(name, "@")
+	hostName := mapping[0]
+	prefixName := mapping[1]
+
+	// Find domain-level entry
+	_, ok = p.routes[hostName]
 	if !ok {
 		return nil
 	}
 
-	route, ok := p.routes[host]
+	// Find prefix-level entry
+	route, ok := p.routes[hostName][prefixName]
 	if !ok {
 		return nil
 	}
 
-	return route.deleteTarget(id)
+	// Delete the target from the route
+	if err := route.deleteTarget(id); err != nil {
+		return err
+	}
+
+	// Remove the route if it does not have any targets
+	if len(route.Targets) == 0 {
+		delete(p.routes[hostName], prefixName)
+	}
+
+	// Remove the routeTable if it does not have any prefixes
+	if len(p.routes[hostName]) == 0 {
+		delete(p.routes, hostName)
+	}
+
+	return nil
 }
 
 func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
@@ -113,7 +180,7 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	target := proxy.lookup(getRouteHost(req.Host))
+	target := proxy.lookup(req)
 	if target == nil {
 		rl.Status = http.StatusServiceUnavailable
 		writeRouteNotFound(rw, rl)
@@ -150,7 +217,7 @@ func newProxy() *Proxy {
 
 	proxy := &Proxy{
 		proxy:    reverseProxy,
-		routes:   map[string]*Route{},
+		routes:   map[string]map[string]*Route{},
 		mapping:  map[string]string{},
 		forceSSL: os.Getenv("FORCE_SSL") == "1" || os.Getenv("FORCE_SSL") == "true",
 	}
@@ -160,9 +227,9 @@ func newProxy() *Proxy {
 
 func (proxy *Proxy) hostPolicy() autocert.HostPolicy {
 	return func(ctx context.Context, host string) error {
-		log.Println("host-pocity request for:", host)
+		log.Println("host policy request for:", host)
 		if _, ok := proxy.routes[host]; !ok {
-			log.Println("host-policy rejected")
+			log.Println("host policy rejected")
 			return errors.New("invalid host")
 		}
 		return nil
@@ -195,7 +262,10 @@ func (proxy *Proxy) start() {
 		})
 
 		handler.HandleFunc("/_routes", func(rw http.ResponseWriter, r *http.Request) {
-			data, _ := json.Marshal(proxy.routes)
+			data, _ := json.Marshal(map[string]interface{}{
+				"routes":  proxy.routes,
+				"mapping": proxy.mapping,
+			})
 			fmt.Fprintf(rw, "%s\n", data)
 		})
 	}
