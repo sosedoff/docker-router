@@ -45,6 +45,7 @@ func newMonitor(proxy *Proxy) *Monitor {
 }
 
 func (m *Monitor) inspectContainer(id string) error {
+	log.Println("inspecting container", id)
 	c, err := m.api.ContainerInspect(context.Background(), id)
 	if err != nil {
 		return err
@@ -93,6 +94,7 @@ func (m *Monitor) inspectContainer(id string) error {
 }
 
 func (m *Monitor) removeContainer(id string) {
+	log.Println("removing container", id)
 	m.proxy.removeTarget(id)
 }
 
