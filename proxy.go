@@ -299,11 +299,13 @@ func (proxy *Proxy) start() {
 		}
 	}()
 
-	go func() {
-		if err := server.ListenAndServeTLS("", ""); err != nil {
-			log.Fatal(err)
-		}
-	}()
+	if os.Getenv("DISABLE_SSL") == "" {
+		go func() {
+			if err := server.ListenAndServeTLS("", ""); err != nil {
+				log.Fatal(err)
+			}
+		}()
+	}
 
 	select {}
 }
