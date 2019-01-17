@@ -13,11 +13,12 @@ import (
 )
 
 type Monitor struct {
-	api          *client.Client
-	proxy        *Proxy
-	routeLabel   string
-	routeNetwork string
-	events       chan RouteEvent
+	api              *client.Client
+	proxy            *Proxy
+	routeLabel       string
+	routeNetwork     string
+	routePrefixLabel string
+	events           chan RouteEvent
 }
 
 type RouteEvent struct {
@@ -34,11 +35,12 @@ func newMonitor(proxy *Proxy) *Monitor {
 	}
 
 	return &Monitor{
-		api:          c,
-		routeLabel:   "domain",
-		routeNetwork: "app",
-		events:       make(chan RouteEvent),
-		proxy:        proxy,
+		api:              c,
+		routeLabel:       "router.domain",
+		routePrefixLabel: "router.prefix",
+		routeNetwork:     "app",
+		events:           make(chan RouteEvent),
+		proxy:            proxy,
 	}
 }
 
@@ -61,6 +63,12 @@ func (m *Monitor) inspectContainer(id string) error {
 		return nil
 	}
 
+	// Get the URL prefix
+	prefix := c.Config.Labels[m.routePrefixLabel]
+	if prefix == "" {
+		prefix = "*"
+	}
+
 	// Fetch container IP on the network
 	net := c.NetworkSettings.Networks[m.routeNetwork]
 	if net == nil {
@@ -81,7 +89,7 @@ func (m *Monitor) inspectContainer(id string) error {
 		return nil
 	}
 
-	return m.proxy.addTarget(id, host, fmt.Sprintf("%v:%v", ip, port))
+	return m.proxy.addTarget(id, host, prefix, fmt.Sprintf("%v:%v", ip, port))
 }
 
 func (m *Monitor) removeContainer(id string) {
