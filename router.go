@@ -13,10 +13,6 @@ type Target struct {
 	Conns    uint64
 }
 
-type RouteTable struct {
-	routes map[string]*Route
-}
-
 type Route struct {
 	Targets     []*Target
 	targetsLock *sync.Mutex
