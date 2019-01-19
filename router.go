@@ -19,7 +19,6 @@ type Route struct {
 	Total       uint64
 }
 
-// Instantiate a new route
 func newRoute() *Route {
 	return &Route{
 		Targets:     []*Target{},
@@ -28,24 +27,20 @@ func newRoute() *Route {
 	}
 }
 
-// Pick a random route target
 func (r *Route) pickRandomTarget() *Target {
 	return r.Targets[randIntn(len(r.Targets))]
 }
 
-// Pick a route target using round robin method
 func (r *Route) pickRoundRobinTarget() *Target {
 	u := r.Targets[r.Total%uint64(len(r.Targets))]
 	atomic.AddUint64(&r.Total, 1)
 	return u
 }
 
-// Pick a route target using least connections method
 func (r *Route) pickLeastConnTarget() *Target {
 	return nil
 }
 
-// Add a new target to the route
 func (r *Route) addTarget(id string, endpoint string) error {
 	r.targetsLock.Lock()
 	defer r.targetsLock.Unlock()
@@ -61,7 +56,6 @@ func (r *Route) addTarget(id string, endpoint string) error {
 	return nil
 }
 
-// Delete an existing target by ID
 func (r *Route) deleteTarget(id string) error {
 	r.targetsLock.Lock()
 	defer r.targetsLock.Unlock()
