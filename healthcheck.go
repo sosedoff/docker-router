@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
@@ -13,28 +12,43 @@ type healthcheck struct {
 	delay    time.Duration
 }
 
-func performHealthCheck(destination string) bool {
-	endpoint := "http://" + destination
-	attempts := 10
-	delay := time.Second
+func newHealthcheck(endpoint string) *healthcheck {
+	return &healthcheck{
+		endpoint: endpoint,
+		attempts: 10,
+		delay:    time.Second,
+	}
+}
+
+func (h *healthcheck) perform() bool {
+	log.Println("starting healthcheck for", h.endpoint)
+
+	attempt := 0
 
 	for {
-		attempts -= 1
-		if attempts < 0 {
-			log.Println("all attempts for", destination, "are exhausted")
+		attempt++
+
+		if attempt > h.attempts {
+			log.Println("all healthchecks failed for", h.endpoint)
 			return false
 		}
 
-		resp, err := http.Get(endpoint)
+		resp, err := http.Get(h.endpoint)
 		if err != nil {
-			log.Println("healthcheck for", destination, "failed. error:", err)
-			time.Sleep(delay)
+			log.Printf("[%d/%d] healthcheck failed for %s: %s\n", attempt, h.attempts, h.endpoint, err)
+			time.Sleep(h.delay)
 			continue
 		}
-		ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			log.Printf("[%d/%d] healthcheck failed for %s: responded with %v\n", attempt, h.attempts, h.endpoint, resp.StatusCode)
+			time.Sleep(h.delay)
+		}
+
 		break
 	}
 
+	log.Printf("[%d/%d] healthcheck passed for %s", attempt, h.attempts, h.endpoint)
 	return true
 }

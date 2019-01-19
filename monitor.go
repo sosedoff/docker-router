@@ -13,12 +13,13 @@ import (
 )
 
 type Monitor struct {
-	api              *client.Client
-	proxy            *Proxy
-	routeLabel       string
-	routeNetwork     string
-	routePrefixLabel string
-	events           chan RouteEvent
+	api                   *client.Client
+	proxy                 *Proxy
+	routeLabel            string
+	routeNetwork          string
+	routePrefixLabel      string
+	routeHealthcheckLabel string
+	events                chan RouteEvent
 }
 
 type RouteEvent struct {
@@ -35,12 +36,13 @@ func newMonitor(proxy *Proxy) *Monitor {
 	}
 
 	return &Monitor{
-		api:              c,
-		routeLabel:       "router.domain",
-		routePrefixLabel: "router.prefix",
-		routeNetwork:     "app",
-		events:           make(chan RouteEvent),
-		proxy:            proxy,
+		api:                   c,
+		routeLabel:            "router.domain",
+		routePrefixLabel:      "router.prefix",
+		routeHealthcheckLabel: "router.healthcheck",
+		routeNetwork:          "app",
+		events:                make(chan RouteEvent),
+		proxy:                 proxy,
 	}
 }
 
@@ -88,6 +90,16 @@ func (m *Monitor) inspectContainer(id string) error {
 	if port == "" {
 		log.Println("container", id, "does not have any exposed ports")
 		return nil
+	}
+
+	// Check if we can actually add the endpoint
+	if healthEndpoint := c.Config.Labels[m.routeHealthcheckLabel]; healthEndpoint != "" {
+		check := newHealthcheck(fmt.Sprintf("http://%v:%v%s", ip, port, healthEndpoint))
+		if available := check.perform(); !available {
+			return fmt.Errorf("healthcheck failed")
+		}
+	} else {
+		log.Println("container", id, "does not have healthcheck endpoint")
 	}
 
 	return m.proxy.addTarget(id, host, prefix, fmt.Sprintf("%v:%v", ip, port))
