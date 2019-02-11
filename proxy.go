@@ -240,6 +240,9 @@ func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	wrapRw := &responseWriter{w: rw}
 
+	req.Host = strings.ToLower(req.Host)
+	req.Method = strings.ToUpper(req.Method)
+
 	rl := NewRequestLog(req)
 	defer func() {
 		log.Println(rl.String())
