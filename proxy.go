@@ -20,6 +20,9 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
+// Allowed HTTP methods
+const allowedMethods = "OPTIONS HEAD GET POST PUT DELETE CONNECT UPGRADE TRACE"
+
 type Proxy struct {
 	proxy    *httputil.ReverseProxy
 	mapping  map[string]string
@@ -237,9 +240,15 @@ func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// isValid returns true if given HTTP methid is valid
+func (proxy *Proxy) isValidMethod(method string) bool {
+	return strings.Index(allowedMethods, method) >= 0
+}
+
 func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	wrapRw := &responseWriter{w: rw}
 
+	// Tweak request host and method
 	req.Host = strings.ToLower(req.Host)
 	req.Method = strings.ToUpper(req.Method)
 
@@ -247,6 +256,12 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	defer func() {
 		log.Println(rl.String())
 	}()
+
+	// Check if request method is correct
+	if !proxy.isValidMethod(req.Method) {
+		wrapRw.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
 
 	// Issue a redirect from http -> https
 	if proxy.forceSSL && rl.Scheme == "http" {
@@ -257,14 +272,14 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 			RawQuery: req.URL.RawQuery,
 		}
 
-		http.Redirect(rw, req, requestURL.String(), 301)
+		http.Redirect(wrapRw, req, requestURL.String(), 301)
 		return
 	}
 
 	target := proxy.lookup(req)
 	if target == nil {
 		rl.Status = http.StatusServiceUnavailable
-		writeRouteNotFound(rw, rl)
+		writeRouteNotFound(wrapRw, rl)
 		return
 	}
 
@@ -278,7 +293,7 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	// Handle websocket proxy
 	upgrade := req.Header.Get("Upgrade")
 	if upgrade == "websocket" || upgrade == "Websocket" {
-		handleWebsocket(rw, req)
+		handleWebsocket(wrapRw, req)
 	} else {
 		// configure HSTS
 		rw.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
