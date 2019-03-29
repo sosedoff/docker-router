@@ -19,6 +19,7 @@ type Monitor struct {
 	routeNetwork          string
 	routePrefixLabel      string
 	routeHealthcheckLabel string
+	routePort             string
 	events                chan RouteEvent
 }
 
@@ -40,6 +41,7 @@ func newMonitor(proxy *Proxy) *Monitor {
 		routeLabel:            "router.domain",
 		routePrefixLabel:      "router.prefix",
 		routeHealthcheckLabel: "router.healthcheck",
+		routePort:             "router.port",
 		routeNetwork:          "app",
 		events:                make(chan RouteEvent),
 		proxy:                 proxy,
@@ -82,9 +84,15 @@ func (m *Monitor) inspectContainer(id string) error {
 	ip := net.IPAddress
 	port := ""
 
-	for k := range c.NetworkSettings.Ports {
-		port = k.Port()
-		break
+	if val, ok := c.Config.Labels[m.routePort]; ok {
+		port = val
+	}
+
+	if port == "" {
+		for k := range c.NetworkSettings.Ports {
+			port = k.Port()
+			break
+		}
 	}
 
 	if port == "" {
