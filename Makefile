@@ -2,7 +2,7 @@ build:
 	go build
 
 docker:
-	docker build -t sosedoff/beam .
+	docker build -t sosedoff/docker-router .
 
 docker-push:
-	docker push sosedoff/beam
+	docker push sosedoff/docker-router
