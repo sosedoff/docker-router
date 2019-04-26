@@ -22,3 +22,17 @@ docker run \
   -v /root/certs:/certs \
   sosedoff/docker-router
 ```
+
+To route HTTP requests to your containers, start them with options:
+
+```
+docker run \
+  --name=myapp \
+  --restart=always \
+  -d \
+  -e PORT=5000 \
+  --label=router.domain=myawesomeapp.com \
+  --label=router.healthcheck=/heartbeat \
+  --net=app \
+  myapp
+```
