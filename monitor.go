@@ -19,6 +19,7 @@ type Monitor struct {
 	routeNetwork          string
 	routePrefixLabel      string
 	routeHealthcheckLabel string
+	routeIdleLabel        string
 	routePort             string
 	events                chan RouteEvent
 }
@@ -42,6 +43,7 @@ func newMonitor(proxy *Proxy) *Monitor {
 		routePrefixLabel:      "router.prefix",
 		routeHealthcheckLabel: "router.healthcheck",
 		routePort:             "router.port",
+		routeIdleLabel:        "router.idletime",
 		routeNetwork:          proxy.networkName,
 		events:                make(chan RouteEvent),
 		proxy:                 proxy,

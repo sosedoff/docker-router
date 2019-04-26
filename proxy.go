@@ -31,6 +31,7 @@ const (
 type Proxy struct {
 	proxy       *httputil.ReverseProxy
 	mapping     map[string]string
+	accessTime  map[string]int64
 	routes      map[string]map[string]*Route
 	forceSSL    bool
 	networkName string
@@ -329,12 +330,18 @@ func newProxy() *Proxy {
 		networkName = defaultNetworkname
 	}
 
+	forceSSL := false
+	if val := os.Getenv("FORCE_SSL"); val == "true" || val == "1" {
+		forceSSL = true
+	}
+
 	proxy := &Proxy{
 		proxy:       reverseProxy,
 		routes:      map[string]map[string]*Route{},
 		mapping:     map[string]string{},
+		accessTime:  map[string]int64{},
 		networkName: networkName,
-		forceSSL:    os.Getenv("FORCE_SSL") == "1" || os.Getenv("FORCE_SSL") == "true",
+		forceSSL:    forceSSL,
 	}
 
 	return proxy
