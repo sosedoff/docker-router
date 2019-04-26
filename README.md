@@ -16,6 +16,7 @@ docker run \
   --net=app \
   -e HTTP_PORT=80 \
   -e HTTPS_PORT=443 \
+  -e DOCKER_NETWORK=app \
   -e LETSENCRYPT_EMAIL=...YOUR EMAIL... \
   -e LETSENCRYPT_CERTS_DIR=/certs \
   -v /var/run/docker.sock:/var/run/docker.sock \

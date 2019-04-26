@@ -20,14 +20,20 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-// Allowed HTTP methods
-const allowedMethods = "OPTIONS HEAD GET POST PUT DELETE CONNECT UPGRADE TRACE"
+const (
+	// Allowed HTTP methods
+	allowedMethods = "OPTIONS HEAD GET POST PUT DELETE CONNECT UPGRADE TRACE"
+
+	// Default docker network to connect to
+	defaultNetworkname = "app"
+)
 
 type Proxy struct {
-	proxy    *httputil.ReverseProxy
-	mapping  map[string]string
-	routes   map[string]map[string]*Route
-	forceSSL bool
+	proxy       *httputil.ReverseProxy
+	mapping     map[string]string
+	routes      map[string]map[string]*Route
+	forceSSL    bool
+	networkName string
 }
 
 func getTargetHost(val string) string {
@@ -318,11 +324,17 @@ func newProxy() *Proxy {
 		}
 	}
 
+	networkName := os.Getenv("DOCKER_NETWORK")
+	if networkName == "" {
+		networkName = defaultNetworkname
+	}
+
 	proxy := &Proxy{
-		proxy:    reverseProxy,
-		routes:   map[string]map[string]*Route{},
-		mapping:  map[string]string{},
-		forceSSL: os.Getenv("FORCE_SSL") == "1" || os.Getenv("FORCE_SSL") == "true",
+		proxy:       reverseProxy,
+		routes:      map[string]map[string]*Route{},
+		mapping:     map[string]string{},
+		networkName: networkName,
+		forceSSL:    os.Getenv("FORCE_SSL") == "1" || os.Getenv("FORCE_SSL") == "true",
 	}
 
 	return proxy
