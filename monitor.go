@@ -42,7 +42,7 @@ func newMonitor(proxy *Proxy) *Monitor {
 		routePrefixLabel:      "router.prefix",
 		routeHealthcheckLabel: "router.healthcheck",
 		routePort:             "router.port",
-		routeNetwork:          "app",
+		routeNetwork:          proxy.networkName,
 		events:                make(chan RouteEvent),
 		proxy:                 proxy,
 	}
