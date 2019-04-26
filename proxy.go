@@ -15,8 +15,11 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -31,10 +34,11 @@ const (
 type Proxy struct {
 	proxy       *httputil.ReverseProxy
 	mapping     map[string]string
-	accessTime  map[string]int64
+	accessTime  map[string]time.Time
 	routes      map[string]map[string]*Route
 	forceSSL    bool
 	networkName string
+	api         *client.Client
 }
 
 func getTargetHost(val string) string {
@@ -106,6 +110,8 @@ func (p *Proxy) addTarget(id, host, prefix, endpoint string) error {
 	if !routeTableExists {
 		rt := newRoute()
 		rt.addTarget(id, endpoint)
+
+		p.accessTime[id] = time.Now()
 		p.routes[host] = map[string]*Route{prefix: rt}
 		return nil
 	}
@@ -116,6 +122,7 @@ func (p *Proxy) addTarget(id, host, prefix, endpoint string) error {
 		rt := newRoute()
 		rt.addTarget(id, endpoint)
 		p.routes[host][prefix] = rt
+		p.accessTime[id] = time.Now()
 		return nil
 	}
 
@@ -127,6 +134,7 @@ func (p *Proxy) addTarget(id, host, prefix, endpoint string) error {
 	}
 
 	// Add the target
+	p.accessTime[id] = time.Now()
 	return p.routes[host][prefix].addTarget(id, endpoint)
 }
 
@@ -135,7 +143,10 @@ func (p *Proxy) removeTarget(id string) error {
 	if !ok {
 		return nil
 	}
-	defer delete(p.mapping, id)
+	defer func() {
+		delete(p.mapping, id)
+		delete(p.accessTime, id)
+	}()
 
 	mapping := strings.Split(name, "@")
 	hostName := mapping[0]
@@ -252,6 +263,57 @@ func (proxy *Proxy) isValidMethod(method string) bool {
 	return strings.Index(allowedMethods, method) >= 0
 }
 
+// Find any stopped containers and start them again
+func (proxy *Proxy) startIdleContainersForHost(host string) error {
+	list, err := proxy.api.ContainerList(context.Background(), types.ContainerListOptions{All: true})
+	if err != nil {
+		log.Println("can fetch container list:", err)
+		return err
+	}
+
+	idsToStart := []string{}
+	for _, c := range list {
+		if c.State != "exited" {
+			continue
+		}
+		if c.Labels["router.idletime"] == "" {
+			continue
+		}
+		if c.Labels["router.domain"] != host {
+			continue
+		}
+		idsToStart = append(idsToStart, c.ID)
+	}
+
+	wg := &sync.WaitGroup{}
+	wg.Add(len(idsToStart))
+
+	for _, id := range idsToStart {
+		go func(cid string) {
+			defer wg.Done()
+
+			log.Println("starting stopped container", cid, "for host", host)
+
+			restartTimeout := time.Second * 10
+			if err := proxy.api.ContainerRestart(context.Background(), cid, &restartTimeout); err != nil {
+				log.Println("failed to start container:", err)
+				return
+			}
+
+			for i := 0; i < 10; i++ {
+				log.Println("waiting for container", cid, "to register for", host)
+				if proxy.mapping[cid] == host {
+					return
+				}
+				time.Sleep(time.Second)
+			}
+		}(id)
+	}
+
+	wg.Wait()
+	return nil
+}
+
 func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	wrapRw := &responseWriter{w: rw}
 
@@ -284,11 +346,22 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	target := proxy.lookup(req)
+
+	// Try to start the stopped containers that have host label
+	if target == nil {
+		host := strings.Split(strings.ToLower(req.Host), ":")[0]
+		if err := proxy.startIdleContainersForHost(host); err == nil {
+			target = proxy.lookup(req)
+		}
+	}
 	if target == nil {
 		rl.Status = http.StatusServiceUnavailable
 		writeRouteNotFound(wrapRw, rl)
 		return
 	}
+
+	// Set last access time for the target
+	proxy.accessTime[target.ID] = time.Now().UTC()
 
 	rl.Destination = target.Endpoint
 
@@ -335,13 +408,19 @@ func newProxy() *Proxy {
 		forceSSL = true
 	}
 
+	dockerApi, err := client.NewEnvClient()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	proxy := &Proxy{
 		proxy:       reverseProxy,
 		routes:      map[string]map[string]*Route{},
 		mapping:     map[string]string{},
-		accessTime:  map[string]int64{},
+		accessTime:  map[string]time.Time{},
 		networkName: networkName,
 		forceSSL:    forceSSL,
+		api:         dockerApi,
 	}
 
 	return proxy
@@ -385,8 +464,9 @@ func (proxy *Proxy) start() {
 
 		handler.HandleFunc("/_routes", func(rw http.ResponseWriter, r *http.Request) {
 			data, _ := json.Marshal(map[string]interface{}{
-				"routes":  proxy.routes,
-				"mapping": proxy.mapping,
+				"routes":     proxy.routes,
+				"mapping":    proxy.mapping,
+				"accesstime": proxy.accessTime,
 			})
 			fmt.Fprintf(rw, "%s\n", data)
 		})

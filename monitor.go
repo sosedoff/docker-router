@@ -149,7 +149,56 @@ func (m *Monitor) handleEvent(e events.Message) {
 	}
 }
 
+func (m *Monitor) stopIdleContainers() {
+	list, err := m.api.ContainerList(context.Background(), types.ContainerListOptions{})
+	if err != nil {
+		log.Println("cant list containers:", err)
+		return
+	}
+
+	for _, c := range list {
+		if c.State != "running" {
+			log.Println("container", c.ID, "is not running")
+			continue
+		}
+
+		// Check if container supports idling
+		idleVal, ok := c.Labels[m.routeIdleLabel]
+		if !ok {
+			continue
+		}
+		idleDuration, err := time.ParseDuration(idleVal)
+		if err != nil {
+			log.Println("cant parse container idle duration:", err)
+			continue
+		}
+
+		// Get last container access time
+		lastAccessTime, ok := m.proxy.accessTime[c.ID]
+		if !ok {
+			// No entry for last access time, skip
+			continue
+		}
+
+		idleTime := time.Now().Sub(lastAccessTime)
+
+		if idleTime > idleDuration {
+			log.Println("stopping idle container", c.ID, "idle time:", idleTime)
+			stopTimeout := time.Second * 10
+			go m.api.ContainerStop(context.Background(), c.ID, &stopTimeout)
+		}
+	}
+}
+
+func (m *Monitor) startIdleMonitoring() {
+	for range time.Tick(time.Second * 10) {
+		m.stopIdleContainers()
+	}
+}
+
 func (m *Monitor) start() {
+	go m.startIdleMonitoring()
+
 	m.inspectExistingContainers()
 
 	messages, errors := m.api.Events(context.Background(), types.EventsOptions{})
