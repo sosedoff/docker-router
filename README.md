@@ -37,3 +37,16 @@ docker run \
   --net=app \
   myapp
 ```
+
+### Idle/Wakeup
+
+If you'd like to put containers to sleep after certain idle time, add the following
+label to your container:
+
+```
+docker run \
+  .... 
+  --label=router.domain=myawesomeapp.com \
+  --label=router.idletime=30m \
+  ...
+```
