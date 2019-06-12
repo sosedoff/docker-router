@@ -25,7 +25,7 @@ import (
 
 const (
 	// Allowed HTTP methods
-	allowedMethods = "OPTIONS HEAD GET POST PUT DELETE CONNECT UPGRADE TRACE"
+	allowedMethods = "OPTIONS HEAD GET POST PUT PATCH DELETE CONNECT UPGRADE TRACE"
 
 	// Default docker network to connect to
 	defaultNetworkname = "app"
