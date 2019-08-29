@@ -258,12 +258,12 @@ func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// isValid returns true if given HTTP methid is valid
+// isValidMethod returns true if given HTTP methid is valid
 func (proxy *Proxy) isValidMethod(method string) bool {
 	return strings.Index(allowedMethods, method) >= 0
 }
 
-// Find any stopped containers and start them again
+// startIdleContainersForHost starts any existing stopped containers
 func (proxy *Proxy) startIdleContainersForHost(host string) error {
 	list, err := proxy.api.ContainerList(context.Background(), types.ContainerListOptions{All: true})
 	if err != nil {
