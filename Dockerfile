@@ -2,7 +2,7 @@
 # Build Phase
 # ------------------------------------------------------------------------------
 
-FROM golang:1.11 AS build
+FROM golang:1.13 AS build
 
 ADD . /go/src/github.com/sosedoff/docker-router
 WORKDIR /go/src/github.com/sosedoff/docker-router

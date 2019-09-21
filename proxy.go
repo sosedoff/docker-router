@@ -185,6 +185,7 @@ func (p *Proxy) removeTarget(id string) error {
 func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 	hj, ok := w.(http.Hijacker)
 	if !ok {
+		log.Println("[ERROR] Not a hijacker")
 		http.Error(w, "not a hijacker", http.StatusInternalServerError)
 		return
 	}
