@@ -112,7 +112,20 @@ func (m *Monitor) inspectContainer(id string) error {
 		log.Println("container", id, "does not have healthcheck endpoint")
 	}
 
-	return m.proxy.addTarget(id, host, prefix, fmt.Sprintf("%v:%v", ip, port))
+	target, err := m.proxy.addTarget(id, host, prefix, fmt.Sprintf("%v:%v", ip, port))
+	if err != nil {
+		return err
+	}
+
+	// Apply basic authentication
+	authUser := c.Config.Labels["auth.user"]
+	authPass := c.Config.Labels["auth.password"]
+
+	if authUser != "" && authPass != "" {
+		target.Auth = &BasicAuth{authUser, authPass}
+	}
+
+	return nil
 }
 
 func (m *Monitor) removeContainer(id string) {

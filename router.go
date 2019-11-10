@@ -6,11 +6,22 @@ import (
 	"time"
 )
 
+// BasicAuth contains basic authentication credentials
+type BasicAuth struct {
+	Username string
+	Password string
+}
+
+func (auth BasicAuth) IsValid(user, password string) bool {
+	return auth.Username == user && auth.Password == password
+}
+
 type Target struct {
 	ID       string
 	Endpoint string
 	Count    uint64
 	Conns    uint64
+	Auth     *BasicAuth
 }
 
 type Route struct {
@@ -41,19 +52,21 @@ func (r *Route) pickLeastConnTarget() *Target {
 	return nil
 }
 
-func (r *Route) addTarget(id string, endpoint string) error {
+func (r *Route) addTarget(id string, endpoint string) (*Target, error) {
 	r.targetsLock.Lock()
 	defer r.targetsLock.Unlock()
 
 	for _, t := range r.Targets {
 		// We don't need duplicate targets
 		if t.ID == id || t.Endpoint == endpoint {
-			return nil
+			return t, nil
 		}
 	}
 
-	r.Targets = append(r.Targets, &Target{ID: id, Endpoint: endpoint})
-	return nil
+	target := &Target{ID: id, Endpoint: endpoint}
+	r.Targets = append(r.Targets, target)
+
+	return target, nil
 }
 
 func (r *Route) deleteTarget(id string) error {
