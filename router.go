@@ -12,22 +12,26 @@ type BasicAuth struct {
 	Password string
 }
 
+// IsValid returns true if provided username and password matches
 func (auth BasicAuth) IsValid(user, password string) bool {
 	return auth.Username == user && auth.Password == password
 }
 
+// Target contains backend endpoint and metadata
 type Target struct {
-	ID       string
-	Endpoint string
-	Count    uint64
-	Conns    uint64
-	Auth     *BasicAuth
+	ID       string     `json:"id"`
+	Endpoint string     `json:"endpoint"`
+	Count    uint64     `json:"count"`
+	Conns    uint64     `json:"conns"`
+	Auth     *BasicAuth `json:"-"`
 }
 
+// Route contains route destinations
 type Route struct {
-	Targets     []*Target
+	Targets []*Target `json:"targetrs"`
+	Total   uint64    `json:"total"`
+
 	targetsLock *sync.Mutex
-	Total       uint64
 }
 
 func newRoute() *Route {
