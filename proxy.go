@@ -407,11 +407,11 @@ func (proxy *Proxy) start() {
 
 	// Debug routes
 	if os.Getenv("DEBUG") != "" {
-		handler.HandleFunc("/_test", func(rw http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(rw, "test\n")
+		handler.HandleFunc("/_router/test", func(rw http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(rw, "OK\n")
 		})
 
-		handler.HandleFunc("/_routes", func(rw http.ResponseWriter, r *http.Request) {
+		handler.HandleFunc("/_router/info", func(rw http.ResponseWriter, r *http.Request) {
 			data, _ := json.Marshal(map[string]interface{}{
 				"routes":     proxy.routes,
 				"mapping":    proxy.mapping,
