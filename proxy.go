@@ -446,7 +446,9 @@ func (proxy *Proxy) start() {
 		}
 	}()
 
-	if os.Getenv("DISABLE_SSL") == "" {
+	disableLetsEncrypt := isEnvVarSet("DISABLE_SSL") || isEnvVarSet("LETSENCRYPT_DISABLED")
+
+	if !disableLetsEncrypt {
 		go func() {
 			if err := server.ListenAndServeTLS("", ""); err != nil {
 				log.Fatal(err)
@@ -455,4 +457,9 @@ func (proxy *Proxy) start() {
 	}
 
 	select {}
+}
+
+func isEnvVarSet(key string) bool {
+	val := os.Getenv(key)
+	return val == "1" || val == "true"
 }

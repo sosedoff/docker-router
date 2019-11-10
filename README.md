@@ -2,6 +2,8 @@
 
 Routing proxy for Docker containers with native LetsEncrypt support
 
+*NOTE: This is an experimental project and it not intended for production - use at your own risk*
+
 ## Usage
 
 Start the proxy container:
