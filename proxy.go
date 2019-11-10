@@ -63,6 +63,12 @@ func writeRouteNotFound(rw http.ResponseWriter, rl *requestLog) {
 	rw.WriteHeader(rl.Status)
 }
 
+func writeInvalidAuth(rw http.ResponseWriter, rl *requestLog) {
+	rl.Status = http.StatusUnauthorized
+	rw.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+	rw.WriteHeader(rl.Status)
+}
+
 func (p *Proxy) lookup(req *http.Request) *Target {
 	host := strings.Split(strings.ToLower(req.Host), ":")[0]
 	path := req.URL.Path
@@ -99,7 +105,7 @@ func (p *Proxy) lookup(req *http.Request) *Target {
 	return route.pickRoundRobinTarget()
 }
 
-func (p *Proxy) addTarget(id, host, prefix, endpoint string) error {
+func (p *Proxy) addTarget(id, host, prefix, endpoint string) (*Target, error) {
 	// Check if domain-level route exists
 	_, routeTableExists := p.routes[host]
 	p.mapping[id] = fmt.Sprintf("%s@%s", host, prefix)
@@ -107,27 +113,38 @@ func (p *Proxy) addTarget(id, host, prefix, endpoint string) error {
 	// Domain-level routing table does not exist
 	if !routeTableExists {
 		rt := newRoute()
-		rt.addTarget(id, endpoint)
+
+		target, err := rt.addTarget(id, endpoint)
+		if err != nil {
+			return nil, err
+		}
 
 		p.accessTime[id] = time.Now()
 		p.routes[host] = map[string]*Route{prefix: rt}
-		return nil
+
+		return target, nil
 	}
 
 	// Prefix-level routing table does not exist
 	_, prefixExists := p.routes[host][prefix]
 	if !prefixExists {
 		rt := newRoute()
-		rt.addTarget(id, endpoint)
+
+		target, err := rt.addTarget(id, endpoint)
+		if err != nil {
+			return nil, err
+		}
+
 		p.routes[host][prefix] = rt
 		p.accessTime[id] = time.Now()
-		return nil
+
+		return target, nil
 	}
 
 	// Find out if the target already exists
 	for _, t := range p.routes[host][prefix].Targets {
 		if t.Endpoint == endpoint {
-			return nil
+			return t, nil
 		}
 	}
 
@@ -279,6 +296,18 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 		rl.Status = http.StatusServiceUnavailable
 		writeRouteNotFound(wrapRw, rl)
 		return
+	}
+
+	// Verify authentication
+	if target.Auth != nil {
+		user, pass, ok := req.BasicAuth()
+		if ok {
+			ok = target.Auth.IsValid(user, pass)
+		}
+		if !ok {
+			writeInvalidAuth(wrapRw, rl)
+			return
+		}
 	}
 
 	// Set last access time for the target
