@@ -83,7 +83,7 @@ docker run \
 
 To see the internal routing state and table, add `DEBUG=1` env var when starting `docker-proxy`.
 
-You should be able to open `http://router-hostname/_routes` endpoint.
+You should be able to open `http://router-hostname/_router/info` endpoint.
 
 Example:
 
@@ -177,7 +177,7 @@ following label to your containers when you start them:
 ```bash
 docker run \
   --label router.domain=myapp.com \
-  --label router.healthcheck=/health
+  --label router.healthcheck=/health \
   myapp
 ```
 
