@@ -28,7 +28,7 @@ type Target struct {
 
 // Route contains route destinations
 type Route struct {
-	Targets []*Target `json:"targetrs"`
+	Targets []*Target `json:"targets"`
 	Total   uint64    `json:"total"`
 
 	targetsLock *sync.Mutex
