@@ -6,3 +6,5 @@ docker:
 
 docker-push:
 	docker push sosedoff/docker-router
+
+docker-release: docker docker-push
