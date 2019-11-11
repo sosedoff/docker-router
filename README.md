@@ -154,7 +154,7 @@ Instead of running different application/containers via subdomains you can use
 a built-in prefix routing. For example, you might want to add a supplimental pgweb
 database container and instead of running it on `pgweb.myapp.com` you can use a special
 path `myapp.com/_pgweb`. Another great example is to run multiple versions of API service
-on the same domain like `myapp.com/api/v1' alongside `myapp.com/api/v2'.
+on the same domain like `myapp.com/api/v1` alongside `myapp.com/api/v2'.
 
 To enable to prefix routing, add the following label to docker container:
 
