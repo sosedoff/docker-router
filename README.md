@@ -165,6 +165,9 @@ docker run \
   myapp
 ```
 
+You can disable prefix-based routing by setting an `PREFIX_ROUTING=0` environment
+variable.
+
 ### Healthchecks
 
 By default docker-router will add the container to the internal routing map as soon
