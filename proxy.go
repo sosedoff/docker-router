@@ -361,7 +361,7 @@ func newProxy() *Proxy {
 		forceSSL = true
 	}
 
-	dockerApi, err := client.NewEnvClient()
+	dockerClient, err := client.NewEnvClient()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -373,7 +373,7 @@ func newProxy() *Proxy {
 		accessTime:           map[string]time.Time{},
 		networkName:          networkName,
 		forceSSL:             forceSSL,
-		api:                  dockerApi,
+		api:                  dockerClient,
 		prefixRoutingEnabled: true,
 	}
 
