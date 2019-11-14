@@ -26,7 +26,7 @@ const (
 	allowedMethods = "OPTIONS HEAD GET POST PUT PATCH DELETE CONNECT UPGRADE TRACE"
 
 	// Default docker network to connect to
-	defaultNetworkname = "app"
+	defaultNetworkname = "bridge"
 )
 
 type Proxy struct {
