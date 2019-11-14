@@ -30,13 +30,14 @@ const (
 )
 
 type Proxy struct {
-	proxy       *httputil.ReverseProxy
-	mapping     map[string]string
-	accessTime  map[string]time.Time
-	routes      map[string]map[string]*Route
-	forceSSL    bool
-	networkName string
-	api         *client.Client
+	proxy                *httputil.ReverseProxy
+	mapping              map[string]string
+	accessTime           map[string]time.Time
+	routes               map[string]map[string]*Route
+	forceSSL             bool
+	networkName          string
+	api                  *client.Client
+	prefixRoutingEnabled bool
 }
 
 func getTargetHost(val string) string {
@@ -81,16 +82,19 @@ func (p *Proxy) lookup(req *http.Request) *Target {
 
 	var route *Route
 
-	for prefix, r := range routeTable {
-		// Skip catch-all destinations
-		if prefix == "" || prefix == "*" {
-			continue
-		}
+	// Lookup route with prefix
+	if p.prefixRoutingEnabled {
+		for prefix, r := range routeTable {
+			// Skip catch-all destinations
+			if prefix == "" || prefix == "*" {
+				continue
+			}
 
-		// Find the first matching route
-		if strings.HasPrefix(path, prefix) {
-			route = r
-			break
+			// Find the first matching route
+			if strings.HasPrefix(path, prefix) {
+				route = r
+				break
+			}
 		}
 	}
 
@@ -363,13 +367,19 @@ func newProxy() *Proxy {
 	}
 
 	proxy := &Proxy{
-		proxy:       reverseProxy,
-		routes:      map[string]map[string]*Route{},
-		mapping:     map[string]string{},
-		accessTime:  map[string]time.Time{},
-		networkName: networkName,
-		forceSSL:    forceSSL,
-		api:         dockerApi,
+		proxy:                reverseProxy,
+		routes:               map[string]map[string]*Route{},
+		mapping:              map[string]string{},
+		accessTime:           map[string]time.Time{},
+		networkName:          networkName,
+		forceSSL:             forceSSL,
+		api:                  dockerApi,
+		prefixRoutingEnabled: true,
+	}
+
+	// Turn of path prefix based routing
+	if val := os.Getenv("PREFIX_ROUTING"); val == "false" || val == "0" {
+		proxy.prefixRoutingEnabled = false
 	}
 
 	return proxy
