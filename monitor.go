@@ -187,7 +187,7 @@ func (m *Monitor) stopIdleContainers() {
 		}
 
 		// Get last container access time
-		lastAccessTime, ok := m.proxy.accessTime[c.ID]
+		lastAccessTime, ok := m.proxy.accessTime.Get(c.ID)
 		if !ok {
 			// No entry for last access time, skip
 			continue

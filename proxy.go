@@ -32,7 +32,7 @@ const (
 type Proxy struct {
 	proxy                *httputil.ReverseProxy
 	mapping              map[string]string
-	accessTime           map[string]time.Time
+	accessTime           AccessMap
 	routes               map[string]map[string]*Route
 	forceSSL             bool
 	networkName          string
@@ -123,7 +123,7 @@ func (p *Proxy) addTarget(id, host, prefix, endpoint string) (*Target, error) {
 			return nil, err
 		}
 
-		p.accessTime[id] = time.Now()
+		p.accessTime.Update(id)
 		p.routes[host] = map[string]*Route{prefix: rt}
 
 		return target, nil
@@ -140,7 +140,7 @@ func (p *Proxy) addTarget(id, host, prefix, endpoint string) (*Target, error) {
 		}
 
 		p.routes[host][prefix] = rt
-		p.accessTime[id] = time.Now()
+		p.accessTime.Update(id)
 
 		return target, nil
 	}
@@ -153,7 +153,7 @@ func (p *Proxy) addTarget(id, host, prefix, endpoint string) (*Target, error) {
 	}
 
 	// Add the target
-	p.accessTime[id] = time.Now()
+	p.accessTime.Update(id)
 	return p.routes[host][prefix].addTarget(id, endpoint)
 }
 
@@ -164,7 +164,7 @@ func (p *Proxy) removeTarget(id string) error {
 	}
 	defer func() {
 		delete(p.mapping, id)
-		delete(p.accessTime, id)
+		p.accessTime.Remove(id)
 	}()
 
 	mapping := strings.Split(name, "@")
@@ -315,7 +315,7 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Set last access time for the target
-	proxy.accessTime[target.ID] = time.Now().UTC()
+	proxy.accessTime.Update(target.ID)
 
 	rl.Destination = target.Endpoint
 
@@ -370,7 +370,7 @@ func newProxy() *Proxy {
 		proxy:                reverseProxy,
 		routes:               map[string]map[string]*Route{},
 		mapping:              map[string]string{},
-		accessTime:           map[string]time.Time{},
+		accessTime:           NewAccessMap(),
 		networkName:          networkName,
 		forceSSL:             forceSSL,
 		api:                  dockerClient,
@@ -425,7 +425,7 @@ func (proxy *Proxy) start() {
 			data, _ := json.Marshal(map[string]interface{}{
 				"routes":     proxy.routes,
 				"mapping":    proxy.mapping,
-				"accesstime": proxy.accessTime,
+				"accesstime": proxy.accessTime.Items(),
 			})
 			fmt.Fprintf(rw, "%s\n", data)
 		})
