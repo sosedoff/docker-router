@@ -27,6 +27,10 @@ const (
 
 	// Default docker network to connect to
 	defaultNetworkname = "bridge"
+
+	// Default ports
+	defaultHTTPPort  = "8080"
+	defaultHTTPSPort = "8443"
 )
 
 type Proxy struct {
@@ -399,12 +403,12 @@ func (proxy *Proxy) hostPolicy() autocert.HostPolicy {
 func (proxy *Proxy) start() {
 	httpPort := os.Getenv("HTTP_PORT")
 	if httpPort == "" {
-		httpPort = "8080"
+		httpPort = defaultHTTPPort
 	}
 
 	httpsPort := os.Getenv("HTTPS_PORT")
 	if httpsPort == "" {
-		httpsPort = "8443"
+		httpsPort = defaultHTTPSPort
 	}
 
 	certManager, err := configureCertManager(proxy.hostPolicy())

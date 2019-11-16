@@ -29,4 +29,7 @@ COPY --from=build /docker-router /bin/docker-router
 EXPOSE 80
 EXPOSE 443
 
+ENV HTTP_PORT 80
+ENV HTTPS_PORT 443
+
 CMD ["/bin/docker-router"]
