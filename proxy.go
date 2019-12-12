@@ -18,6 +18,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -62,6 +63,14 @@ func getRequestScheme(r *http.Request) string {
 		return "https"
 	}
 	return "http"
+}
+
+func getRequestId(r *http.Request) string {
+	val := r.Header.Get("X-Request-Id")
+	if val != "" {
+		return val
+	}
+	return uuid.NewV4().String()
 }
 
 func writeRouteNotFound(rw http.ResponseWriter, rl *requestLog) {
@@ -348,6 +357,7 @@ func newProxy() *Proxy {
 		req.Header.Set("X-Forwarded-Host", req.Host)
 		req.Header.Set("X-Forwarded-For", req.RemoteAddr)
 		req.Header.Set("X-Forwarded-Proto", getRequestScheme(req))
+		req.Header.Set("X-Request-Id", getRequestId(req))
 
 		// explicitly disable User-Agent so it's not set to default value
 		if _, ok := req.Header["User-Agent"]; !ok {
