@@ -200,3 +200,32 @@ docker run \
   --label=router.idletime=30m \
   ...
 ```
+
+### OAuth
+
+To enable OAuth flow create a config file with the following contents:
+
+```json
+{
+  "oauth": {
+    "myapp": {
+      "provider": "google",
+      "client_id": "... paste client id ...",
+      "client_secret": "... paste client secret",
+      "allowed_domains": [
+        "myapp.com"
+      ]
+    }
+  }
+}
+```
+
+Then start your container with the label:
+
+```
+docker run \
+  ....
+  --label=router.domain=myapp.com
+  --label=router.oauth=myapp
+  ....
+```
