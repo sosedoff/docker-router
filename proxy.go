@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sosedoff/docker-router/oauth"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	uuid "github.com/satori/go.uuid"
@@ -35,6 +37,7 @@ const (
 )
 
 type Proxy struct {
+	oauthHandlers        map[string]*oauth.Proxy
 	proxy                *httputil.ReverseProxy
 	mapping              map[string]string
 	accessTime           AccessMap
@@ -43,6 +46,7 @@ type Proxy struct {
 	networkName          string
 	api                  *client.Client
 	prefixRoutingEnabled bool
+	debugEnabled         bool
 }
 
 func getTargetHost(val string) string {
@@ -51,6 +55,10 @@ func getTargetHost(val string) string {
 
 func getRouteHost(val string) string {
 	return strings.Split(val, ":")[0]
+}
+
+func getRequestHost(req *http.Request) string {
+	return strings.Split(strings.ToLower(req.Host), ":")[0]
 }
 
 func getRemoteAddr(r *http.Request) string {
@@ -270,6 +278,70 @@ func (proxy *Proxy) startIdleContainersForHost(host string) error {
 	return nil
 }
 
+func makeRedirectURL(req *http.Request, path string) string {
+	host := strings.Split(strings.ToLower(req.Host), ":")[0]
+	scheme := getRequestScheme(req)
+
+	return fmt.Sprintf("%s://%s%s", scheme, host, path)
+}
+
+func (proxy *Proxy) handleOAuth(target *Target, rw http.ResponseWriter, req *http.Request) (haltchain bool, err error) {
+	// Authentication is not used
+	if target.OAuthKey == "" {
+		return
+	}
+
+	// Authentication is not provided
+	handler, exists := proxy.oauthHandlers[target.OAuthKey]
+	if !exists {
+		haltchain = true
+		err = fmt.Errorf("OAuth provider for ID=%s is not configured", target.OAuthKey)
+		return
+	}
+
+	// Build a new context
+	ctx := &oauth.Context{
+		Host:           getRequestHost(req),
+		Scheme:         getRequestScheme(req),
+		ResponseWriter: rw,
+		Request:        req,
+	}
+
+	switch req.URL.Path {
+	case handler.StartPath:
+		haltchain = true
+		handler.Start(ctx)
+		return
+	case handler.CallbackPath:
+		haltchain = true
+		handler.Callback(ctx)
+		return
+	case handler.ProfilePath:
+		haltchain = true
+		handler.Profile(ctx)
+		return
+	case handler.SignoutPath:
+		haltchain = true
+		handler.Signout(ctx)
+		return
+	}
+
+	// Find current authentication session
+	session, err := handler.Session(ctx)
+	if err != nil {
+		handler.Start(ctx)
+		haltchain = true
+		return
+	}
+
+	// Set proxy headers
+	req.Header.Set("X-Auth-Request-Email", session.Email)
+	req.Header.Set("X-Auth-Request-User", session.User)
+
+	haltchain = false
+	return
+}
+
 func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	wrapRw := &responseWriter{w: rw}
 
@@ -327,6 +399,16 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	// Handle OAuthe authentication
+	haltchain, err := proxy.handleOAuth(target, wrapRw, req)
+	if err != nil {
+		rl.Status = http.StatusInternalServerError
+		fmt.Fprintf(wrapRw, err.Error())
+	}
+	if haltchain {
+		return
+	}
+
 	// Set last access time for the target
 	proxy.accessTime.Update(target.ID)
 
@@ -336,6 +418,11 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	req.URL.Host = target.Endpoint
 
 	ts := time.Now()
+
+	// Inject target ID header in debug mode
+	if proxy.debugEnabled {
+		req.Header.Set("X-Route-Target", target.ID)
+	}
 
 	// Handle websocket proxy
 	upgrade := req.Header.Get("Upgrade")
@@ -353,17 +440,6 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 
 func newProxy() *Proxy {
 	reverseProxy := httputil.NewSingleHostReverseProxy(&url.URL{})
-	reverseProxy.Director = func(req *http.Request) {
-		req.Header.Set("X-Forwarded-Host", req.Host)
-		req.Header.Set("X-Forwarded-For", req.RemoteAddr)
-		req.Header.Set("X-Forwarded-Proto", getRequestScheme(req))
-		req.Header.Set("X-Request-Id", getRequestId(req))
-
-		// explicitly disable User-Agent so it's not set to default value
-		if _, ok := req.Header["User-Agent"]; !ok {
-			req.Header.Set("User-Agent", "")
-		}
-	}
 
 	networkName := os.Getenv("DOCKER_NETWORK")
 	if networkName == "" {
@@ -388,12 +464,21 @@ func newProxy() *Proxy {
 		networkName:          networkName,
 		forceSSL:             forceSSL,
 		api:                  dockerClient,
-		prefixRoutingEnabled: true,
+		prefixRoutingEnabled: !isEnvVarSet("PREFIX_ROUTING"),
+		debugEnabled:         isEnvVarSet("DEBUG"),
 	}
 
-	// Turn of path prefix based routing
-	if val := os.Getenv("PREFIX_ROUTING"); val == "false" || val == "0" {
-		proxy.prefixRoutingEnabled = false
+	// Setup route director
+	reverseProxy.Director = func(req *http.Request) {
+		req.Header.Set("X-Forwarded-Host", req.Host)
+		req.Header.Set("X-Forwarded-For", req.RemoteAddr)
+		req.Header.Set("X-Forwarded-Proto", getRequestScheme(req))
+		req.Header.Set("X-Request-Id", getRequestId(req))
+
+		// explicitly disable User-Agent so it's not set to default value
+		if _, ok := req.Header["User-Agent"]; !ok {
+			req.Header.Set("User-Agent", "")
+		}
 	}
 
 	return proxy
@@ -410,7 +495,24 @@ func (proxy *Proxy) hostPolicy() autocert.HostPolicy {
 	}
 }
 
+func (proxy *Proxy) addDebugRoutes(handler *http.ServeMux) {
+	handler.HandleFunc("/_router/test", func(rw http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(rw, "OK\n")
+	})
+
+	handler.HandleFunc("/_router/info", func(rw http.ResponseWriter, r *http.Request) {
+		data, _ := json.Marshal(map[string]interface{}{
+			"routes":     proxy.routes,
+			"mapping":    proxy.mapping,
+			"accesstime": proxy.accessTime.Items(),
+		})
+		fmt.Fprintf(rw, "%s\n", data)
+	})
+}
+
 func (proxy *Proxy) start() {
+	letsencryptDisabled := isEnvVarSet("DISABLE_SSL") || isEnvVarSet("LETSENCRYPT_DISABLED")
+
 	httpPort := os.Getenv("HTTP_PORT")
 	if httpPort == "" {
 		httpPort = defaultHTTPPort
@@ -421,29 +523,27 @@ func (proxy *Proxy) start() {
 		httpsPort = defaultHTTPSPort
 	}
 
-	certManager, err := configureCertManager(proxy.hostPolicy())
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	handler := http.NewServeMux()
 	handler.HandleFunc("/", proxy.handleRequest)
 
 	// Debug routes
-	if os.Getenv("DEBUG") != "" {
-		handler.HandleFunc("/_router/test", func(rw http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(rw, "OK\n")
-		})
-
-		handler.HandleFunc("/_router/info", func(rw http.ResponseWriter, r *http.Request) {
-			data, _ := json.Marshal(map[string]interface{}{
-				"routes":     proxy.routes,
-				"mapping":    proxy.mapping,
-				"accesstime": proxy.accessTime.Items(),
-			})
-			fmt.Fprintf(rw, "%s\n", data)
-		})
+	if proxy.debugEnabled {
+		proxy.addDebugRoutes(handler)
 	}
+
+	// Serve plan HTTP and nothing else
+	if letsencryptDisabled {
+		if err := http.ListenAndServe(":"+httpPort, handler); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	certManager, err := configureCertManager(proxy.hostPolicy())
+	if err != nil {
+		log.Fatal(err)
+	}
+	certHandler := certManager.HTTPHandler(handler)
 
 	server := &http.Server{
 		Addr:    ":" + httpsPort,
@@ -464,21 +564,16 @@ func (proxy *Proxy) start() {
 	}
 
 	go func() {
-		certHandler := certManager.HTTPHandler(handler)
-		if err := http.ListenAndServe(":"+httpPort, certHandler); err != nil {
+		if err := server.ListenAndServeTLS("", ""); err != nil {
 			log.Fatal(err)
 		}
 	}()
 
-	disableLetsEncrypt := isEnvVarSet("DISABLE_SSL") || isEnvVarSet("LETSENCRYPT_DISABLED")
-
-	if !disableLetsEncrypt {
-		go func() {
-			if err := server.ListenAndServeTLS("", ""); err != nil {
-				log.Fatal(err)
-			}
-		}()
-	}
+	go func() {
+		if err := http.ListenAndServe(":"+httpPort, certHandler); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
 	select {}
 }

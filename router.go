@@ -24,6 +24,7 @@ type Target struct {
 	Count    uint64     `json:"count"`
 	Conns    uint64     `json:"conns"`
 	Auth     *BasicAuth `json:"-"`
+	OAuthKey string     `json:"oauth"`
 }
 
 // Route contains route destinations

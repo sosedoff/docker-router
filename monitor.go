@@ -117,6 +117,11 @@ func (m *Monitor) inspectContainer(id string) error {
 		return err
 	}
 
+	// Add reference to OAuth provider
+	if oauthKey := c.Config.Labels["router.oauth"]; oauthKey != "" {
+		target.OAuthKey = oauthKey
+	}
+
 	// Apply basic authentication
 	authUser := c.Config.Labels["auth.user"]
 	authPass := c.Config.Labels["auth.password"]
