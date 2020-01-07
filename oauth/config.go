@@ -63,6 +63,7 @@ func setupGoogleProxy(id string, c config.OAuthConfig) (*Proxy, error) {
 	}
 
 	proxy := &Proxy{
+		Disabled:  c.Disabled,
 		Store:     sessionStore,
 		Provider:  providers.NewGoogleProvider(&data),
 		Validator: validator,
@@ -75,6 +76,7 @@ func setupGoogleProxy(id string, c config.OAuthConfig) (*Proxy, error) {
 		CallbackPath: filepath.Join(pathPrefix, AuthCallbackPath),
 		ProfilePath:  filepath.Join(pathPrefix, AuthProfilePath),
 		SignoutPath:  filepath.Join(pathPrefix, AuthSignoutPath),
+		SkipPaths:    c.SkipPaths,
 	}
 
 	return proxy, nil

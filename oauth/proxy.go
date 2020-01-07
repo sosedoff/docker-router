@@ -38,6 +38,8 @@ type Proxy struct {
 	Store        sessionsapi.SessionStore
 	Log          *Logger
 	Validator    Validator
+	Disabled     bool
+	SkipPaths    []string
 
 	StartPath    string
 	CallbackPath string

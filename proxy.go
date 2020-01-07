@@ -299,6 +299,21 @@ func (proxy *Proxy) handleOAuth(target *Target, rw http.ResponseWriter, req *htt
 		return
 	}
 
+	// Authentication is turned off
+	if handler.Disabled {
+		return
+	}
+
+	// Path is not enforced
+	if len(handler.SkipPaths) > 0 {
+		path := req.URL.Path
+		for _, p := range handler.SkipPaths {
+			if strings.HasPrefix(path, p) {
+				return
+			}
+		}
+	}
+
 	// Build a new context
 	ctx := &oauth.Context{
 		Host:           getRequestHost(req),

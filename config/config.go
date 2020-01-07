@@ -22,6 +22,7 @@ type OAuthConfig struct {
 	AllowedEmails  []string `json:"allowed_emails"`
 	Disabled       bool     `json:"disabled"`
 	PathPrefix     string   `json:"path_prefix"`
+	SkipPaths      []string `json:"skip_paths"`
 }
 
 // Validate returns an error if config is not valid
@@ -37,7 +38,7 @@ func (c OAuthConfig) Validate() error {
 	}
 
 	if c.Provider == "google" {
-		if len(c.AllowedDomains) == 0 {
+		if len(c.AllowedDomains) == 0 && len(c.AllowedEmails) == 0 {
 			return errAllowedDomainsRequired
 		}
 	}
