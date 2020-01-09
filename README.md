@@ -83,7 +83,7 @@ docker run \
 
 To see the internal routing state and table, add `DEBUG=1` env var when starting `docker-proxy`.
 
-You should be able to open `http://router-hostname/_router/info` endpoint.
+You should be able to open `http://router-hostname/_debug_/info` endpoint.
 
 Example:
 
@@ -128,6 +128,10 @@ Example:
   }
 }
 ```
+
+You can also inspect container logs without typing any terminal commands. Visit
+`http://router-hostname/_debug/logs` and the page will print out last 1K lines of 
+container logs if there are any.
 
 ## Features
 
