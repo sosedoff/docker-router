@@ -39,6 +39,7 @@ const (
 type Proxy struct {
 	oauthHandlers        map[string]*oauth.Proxy
 	proxy                *httputil.ReverseProxy
+	logInspector         *LogInspector
 	mapping              map[string]string
 	accessTime           AccessMap
 	routes               map[string]map[string]*Route
@@ -496,6 +497,11 @@ func newProxy() *Proxy {
 		}
 	}
 
+	// Setup log inspector
+	if proxy.debugEnabled {
+		proxy.logInspector = newLogsInspector()
+	}
+
 	return proxy
 }
 
@@ -511,17 +517,39 @@ func (proxy *Proxy) hostPolicy() autocert.HostPolicy {
 }
 
 func (proxy *Proxy) addDebugRoutes(handler *http.ServeMux) {
-	handler.HandleFunc("/_router/test", func(rw http.ResponseWriter, r *http.Request) {
+	handler.HandleFunc("/_debug/test", func(rw http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(rw, "OK\n")
 	})
 
-	handler.HandleFunc("/_router/info", func(rw http.ResponseWriter, r *http.Request) {
+	handler.HandleFunc("/_debug/info", func(rw http.ResponseWriter, r *http.Request) {
 		data, _ := json.Marshal(map[string]interface{}{
 			"routes":     proxy.routes,
 			"mapping":    proxy.mapping,
 			"accesstime": proxy.accessTime.Items(),
 		})
 		fmt.Fprintf(rw, "%s\n", data)
+	})
+
+	handler.HandleFunc("/_debug/logs", func(rw http.ResponseWriter, r *http.Request) {
+		routesTable, exist := proxy.routes[getRequestHost(r)]
+		if !exist {
+			return
+		}
+
+		routes, exist := routesTable["*"]
+		if !exist {
+			return
+		}
+
+		ids := []string{}
+		for _, t := range routes.Targets {
+			ids = append(ids, t.ID)
+		}
+
+		rw.Header().Set("Content-Type", "text/plain")
+		rw.Header().Set("Content-Disposition", "inline")
+
+		proxy.logInspector.renderLogs(ids, rw)
 	})
 }
 
