@@ -29,7 +29,7 @@ func newLogsInspector() *LogInspector {
 	}
 }
 
-func (inspector LogInspector) renderLogs(ids []string, writer io.Writer) {
+func (inspector *LogInspector) renderLogs(ids []string, writer io.Writer) {
 	if inspector.busy {
 		fmt.Fprintln(writer, "another logs request is in progress")
 		return
