@@ -61,7 +61,7 @@
   revision = "28602af35aceda2f8d571bad7ca37a54cf0250bc"
 
 [[projects]]
-  digest = "1:c4c7064c2c67a0a00815918bae489dd62cd88d859d24c95115d69b00b3d33334"
+  digest = "1:c9fed74f616e2e018bfe5dc82efb592233873744b818c6422a01f25431ecdd5b"
   name = "github.com/docker/docker"
   packages = [
     "api/types",
@@ -79,6 +79,7 @@
     "api/types/versions",
     "api/types/volume",
     "client",
+    "pkg/stdcopy",
     "pkg/tlsconfig",
   ]
   pruneopts = "UT"
@@ -447,6 +448,7 @@
     "github.com/docker/docker/api/types",
     "github.com/docker/docker/api/types/events",
     "github.com/docker/docker/client",
+    "github.com/docker/docker/pkg/stdcopy",
     "github.com/gorilla/securecookie",
     "github.com/mcnijman/go-emailaddress",
     "github.com/pusher/oauth2_proxy/pkg/apis/options",
