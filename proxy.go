@@ -39,6 +39,7 @@ const (
 type Proxy struct {
 	oauthHandlers        map[string]*oauth.Proxy
 	proxy                *httputil.ReverseProxy
+	requestLogFormat     string
 	logInspector         *LogInspector
 	mapping              map[string]string
 	accessTime           AccessMap
@@ -351,6 +352,7 @@ func (proxy *Proxy) handleOAuth(target *Target, rw http.ResponseWriter, req *htt
 	}
 
 	// Set proxy headers
+	req.Header.Set("X-Auth-Request", "1")
 	req.Header.Set("X-Auth-Request-Email", session.Email)
 	req.Header.Set("X-Auth-Request-User", session.User)
 
@@ -364,9 +366,13 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	req.Host = strings.ToLower(req.Host)
 	req.Method = strings.ToUpper(req.Method)
 
-	rl := NewRequestLog(req)
+	rl := newRequestLog(req)
 	defer func() {
-		log.Println(rl.String())
+		if proxy.requestLogFormat == "json" {
+			log.Println(rl.JSON())
+		} else {
+			log.Println(rl.String())
+		}
 	}()
 
 	// Check if request method is correct
@@ -423,6 +429,12 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 	}
 	if haltchain {
 		return
+	}
+
+	// Set user meta data for logs
+	if req.Header.Get("X-Auth-Request") == "1" {
+		rl.Meta["oauth_email"] = req.Header.Get("X-Auth-Request-Email")
+		rl.Meta["oauth_user"] = req.Header.Get("X-Auth-Request-User")
 	}
 
 	// Set last access time for the target
@@ -482,6 +494,7 @@ func newProxy() *Proxy {
 		api:                  dockerClient,
 		prefixRoutingEnabled: !isEnvVarSet("PREFIX_ROUTING"),
 		debugEnabled:         isEnvVarSet("DEBUG"),
+		requestLogFormat:     "text",
 	}
 
 	// Setup route director
@@ -500,6 +513,10 @@ func newProxy() *Proxy {
 	// Setup log inspector
 	if proxy.debugEnabled {
 		proxy.logInspector = newLogsInspector()
+	}
+
+	if os.Getenv("REQUEST_LOG_FORMAT") == "json" {
+		proxy.requestLogFormat = "json"
 	}
 
 	return proxy
