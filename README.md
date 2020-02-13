@@ -2,8 +2,6 @@
 
 Routing proxy for Docker containers with native LetsEncrypt support
 
-*NOTE: This is an experimental project and is not intended for production - use at your own risk*
-
 ## Overview
 
 Docker router project is designed for a specific purpose - to route and load balance
@@ -204,6 +202,20 @@ docker run \
   --label=router.idletime=30m \
   ...
 ```
+
+### Certificate Store
+
+To store certificate files on the host machine use the `LETSENCRYPT_CERTS_DIR`
+environment variable. 
+
+To store certificates using Amazon S3 store you'll need to define the following 
+environment variables:
+
+- `LETSENCRYPT_S3_BUCKET` - Bucket name.
+- `LETSENCRYPT_S3_REGION` - Region name. It's important to get this value right.
+- `AWS_ACCESS_KEY_ID`     - Optional access key var. Required if not using AWS instance profiles.
+- `AWS_SECRET_ACCESS_KEY` - Optional secret key. Required if not using AWS instance profiles.
+- `AWS_PROFILE`           - Optional profile name if `~/.aws/credentials` is configured.
 
 ### OAuth
 
