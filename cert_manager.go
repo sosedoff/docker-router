@@ -18,20 +18,26 @@ import (
 func testCertCache(cache autocert.Cache) error {
 	testfile := fmt.Sprintf("_test_%s", uuid.NewV4().String())
 
-	log.Println("Testing cache store write")
+	log.Println("testing cache store write:", testfile)
 	if err := cache.Put(context.Background(), testfile, []byte("This is a test")); err != nil {
+		log.Println("cache write failed:", err)
 		return err
 	}
+	log.Println("cache write ok:", testfile)
 
-	log.Println("Testing cache store read")
+	log.Println("testing cache store read:", testfile)
 	if _, err := cache.Get(context.Background(), testfile); err != nil {
+		log.Println("cache read failed:", err)
 		return err
 	}
+	log.Println("cache read ok:", testfile)
 
-	log.Println("Testing cache store delete")
+	log.Println("testing cache store delete:", testfile)
 	if err := cache.Delete(context.Background(), testfile); err != nil {
+		log.Println("cache delete failed:", err)
 		return err
 	}
+	log.Println("cache delete ok:", testfile)
 
 	return nil
 }
