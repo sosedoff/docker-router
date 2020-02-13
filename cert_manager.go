@@ -58,7 +58,11 @@ func configureCertStore() (autocert.Cache, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		cache.Prefix = os.Getenv("LETSENCRYPT_S3_PREFIX")
+		if cache.Prefix == "" && os.Getenv("LETSENCRYPT_STAGING") != "" {
+			cache.Prefix = "staging/"
+		}
 
 		return cache, testCertCache(cache)
 	}
