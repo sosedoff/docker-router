@@ -381,8 +381,12 @@ func (proxy *Proxy) handleRequest(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Check if request is internal
+	isInternal := strings.HasSuffix(req.Host, ".internal")
+
 	// Issue a redirect from http -> https
-	if proxy.forceSSL && rl.Scheme == "http" {
+	// Disabled for internal requests
+	if !isInternal && proxy.forceSSL && rl.Scheme == "http" {
 		requestURL := &url.URL{
 			Scheme:   "https",
 			Host:     rl.Host,
